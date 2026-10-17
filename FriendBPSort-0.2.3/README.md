@@ -8,3 +8,7 @@ Four buttons added to the right of the Friend Board that allow you to catagorize
 - RECENTLY PLAYED: most recently-met encounter.
 
 Selecting a mode returns the list to the first page. The choice and locally observed dates are saved in MelonLoader preferences.
+
+*This mod was vibe coded using Astra GPT-6*
+
+~ Jay
