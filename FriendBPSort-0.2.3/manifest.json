@@ -1,0 +1,9 @@
+{
+  "name": "FriendBPSort",
+  "version_number": "1.0.0",
+  "website_url": "",
+  "description": "Sorts the RUMBLE friends board by name, Battle Points, friend-added date, or recently played.",
+  "dependencies": [
+    "LavaGang-MelonLoader-0.7.3"
+  ]
+}
