@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net6.0</TargetFramework><AssemblyName>FriendBPSort</AssemblyName><Version>0.2.3</Version><LangVersion>latest</LangVersion><GameRoot Condition="'$(GameRoot)' == ''">C:\Program Files (x86)\Steam\steamapps\common\RUMBLE</GameRoot></PropertyGroup>
+  <PropertyGroup><TargetFramework>net6.0</TargetFramework><AssemblyName>FriendBPSort</AssemblyName><Version>0.3.3</Version><LangVersion>latest</LangVersion><GameRoot Condition="'$(GameRoot)' == ''">C:\Program Files (x86)\Steam\steamapps\common\RUMBLE</GameRoot></PropertyGroup>
   <ItemGroup>
     <Reference Include="MelonLoader"><HintPath>$(GameRoot)\MelonLoader\net6\MelonLoader.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="0Harmony"><HintPath>$(GameRoot)\MelonLoader\net6\0Harmony.dll</HintPath><Private>false</Private></Reference>
@@ -7,6 +7,10 @@
     <Reference Include="$(GameRoot)\MelonLoader\Il2CppAssemblies\*.dll"><Private>false</Private></Reference>
   </ItemGroup>
 </Project>
+
+
+
+
 
 
 

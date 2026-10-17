@@ -1,0 +1,43 @@
+# FriendBPSort (1.0.0)
+
+- Added physical sorting buttons beside the friends board:
+  - Alphabetical order.
+  - Battle Points.
+  - Friend-added date.
+  - Recently played.
+
+- Unified sorting across online and offline players.
+- Saved the selected sort between sessions. :p
+- Added local tracking for newly added friends and recent encounters.
+- Added buttons with labels.
+- Highlighted the active sort in gold with a checkmark.
+- Preserved scrolling during automatic list updates.
+- Used normally loaded player profiles to retrieve BP.
+Historical friend-added dates are unavailable; tracking begins when the mod first observes new additions.
+
+
+FriendBPSort (2.0.0)
+Added
+- Optional 'MatchInfo' mod by Ulvakskillz integration for per-player wins, losses, and total matches.
+New Filter Options
+- WLR button cycling through most wins, fewest wins, most losses, and fewest losses.
+- Total Matches button sorting by most or fewest matches.
+
+- Reverse sorting for every existing sort option.
+- Saved sort direction between sessions.
+- Per-player stat plates beside BP, showing the active sorting value.
+
+Display improvements
+- Renamed KDR to WLR.
+- WLR displays paired values such as 29/26, reversing their order for inverse sorting.
+- Wins appear gold/yellow; losses appear bright red.
+- Stat plates reuse the native BP font and backplate styling.
+- Unknown values display a dash and remain last in either sorting direction.
+MatchInfo behavior
+- WLR and Total Matches buttons appear only when MatchInfo is loaded.
+- Removing MatchInfo hides those buttons and resets an active match sort to A-Z.
+- Statistics refresh when MatchInfo saves updated match results.
+- Invalid or temporarily locked files preserve the last valid statistics.
+- MatchInfo remains optional; its files are read without modification.
+
+O-O what are you lookin at?... weirdo...
