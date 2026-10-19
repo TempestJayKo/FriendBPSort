@@ -17,6 +17,7 @@ Historical friend-added dates are unavailable; tracking begins when the mod firs
 
 
 FriendBPSort (2.0.0)
+
 Added
 - Optional 'MatchInfo' mod by Ulvakskillz integration for per-player wins, losses, and total matches.
 New Filter Options
@@ -39,5 +40,11 @@ MatchInfo behavior
 - Statistics refresh when MatchInfo saves updated match results.
 - Invalid or temporarily locked files preserve the last valid statistics.
 - MatchInfo remains optional; its files are read without modification.
+
+# FriendBPSort PATCH (2.0.1)
+
+Fixes
+- Fixed Button position blocking 'Recently Met' handlebar
+- Scaled down the W/L / Total Matches | textdata   
 
 O-O what are you lookin at?... weirdo...

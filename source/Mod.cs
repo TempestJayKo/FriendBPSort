@@ -13,7 +13,7 @@ using Il2CppTMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using Object=UnityEngine.Object;
-[assembly:MelonInfo(typeof(FriendBPSort.Mod),"FriendBPSort","0.3.3","Colli",null)]
+[assembly:MelonInfo(typeof(FriendBPSort.Mod),"FriendBPSort","0.3.7","Colli",null)]
 [assembly:MelonGame("Buckethead Entertainment","RUMBLE")]
 namespace FriendBPSort;
 public sealed class Mod:MelonMod
@@ -28,7 +28,17 @@ public sealed class Mod:MelonMod
         internal GameObject Box;
         internal TMP_Text Text;
         internal string Master,Title,Key;
+        internal bool Captured,Applied;
+        internal Vector3 BPPosition,PlatePosition,PlateScale;
+        internal Vector2 BPSize;
+        internal float BPFont;
+        internal bool BPAuto;
+        internal TextAlignmentOptions BPAlignment;
+        internal Transform Plate;
+        internal Bounds PlateBounds;
+
     }
+    // UwU, instance IDs identify reusable visual slots; Master/Title identify the player currently occupying each slot.
     private static readonly Dictionary<int,RowValue> rowValues=new();
     private static readonly string[] captions={"SORT A–Z","SORT BY BP","FRIEND ADDED","RECENTLY PLAYED","WLR","TOTAL MATCHES"};
     private static readonly MatchStats matches=new();
@@ -40,6 +50,7 @@ public sealed class Mod:MelonMod
     private static int matchFileChanged=1;
     private static int matchReadRetries;
     private static string MatchPath=>System.IO.Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory,"MatchInfo","MatchInfo.txt");
+    // UwU, monitor the optional file only while MatchInfo is loaded; callbacks set an atomic flag rather than touching Unity.
     private static void WatchMatches(bool present)
     {
         if(!present){matchWatcher?.Dispose();matchWatcher=null;return;}
@@ -67,12 +78,13 @@ public sealed class Mod:MelonMod
     private static bool dirty,historyDirty,stopped,warnedMissingAsset,resetPage;
     private static float nextTick,nextAssetSearch,nextSave;
     private static GameObject staging;
-    private static Material backboardMaterial;
+
     private static InteractionButton stoneButton;
     private static bool rendering;
     private static string Key(UserSearchResult f)=>!string.IsNullOrWhiteSpace(f?.PlayFabMasterId)?f.PlayFabMasterId:f?.PlayFabTitleId??"";
     private static string Key(UserData u)=>!string.IsNullOrWhiteSpace(u?.playFabMasterId)?u.playFabMasterId:u?.playFabTitleId??"";
     private static int BP(UserSearchResult f)=>points.TryGetValue(Key(f),out int bp)?bp:-1;
+    // UwU, create saved preferences, restore history, and patch only the native refresh/encounter entry points.
     public override void OnInitializeMelon()
     {
         preferences=MelonPreferences.CreateCategory("FriendBPSort");
@@ -90,6 +102,7 @@ public sealed class Mod:MelonMod
         HarmonyInstance.Patch(typeof(FriendHandler).GetMethod("AddRecentlyMetPlayer"),postfix:new HarmonyMethod(typeof(Mod).GetMethod(nameof(MetPlayer),flags)));
         MelonLogger.Msg("FriendBPSort: four sort buttons ready; two additional match-stat buttons require MatchInfo. Historical friend dates are unknown; new additions and encounters are tracked locally.");
     }
+    // Mew, copy BP from profiles the game already fetched; never create temporary profile objects or network requests.
     private static bool Snapshot()
     {
         bool changed=false;var data=UserDataManager.userDataList;
@@ -101,10 +114,12 @@ public sealed class Mod:MelonMod
         }
         return changed;
     }
+    // UwU, send stable IDs and the chosen metric to our comparator; unknown values always sort last.
     private static int CompareFriends(GetFriendsResult a,GetFriendsResult b)
     {
         return Ranking.Compare(mode,BP(a),a?.PublicName,Key(a),IsMatch(mode)?matches.Value(mode,a?.PlayFabMasterId):history.Date(mode,a?.PlayFabMasterId,a?.PlayFabTitleId),BP(b),b?.PublicName,Key(b),IsMatch(mode)?matches.Value(mode,b?.PlayFabMasterId):history.Date(mode,b?.PlayFabMasterId,b?.PlayFabTitleId),inverse);
     }
+    // Mew, sort the full friend list before paging so online status cannot override the requested order. The rendering guard prevents recursive refresh.
     private static bool RefreshUnified(FriendList __instance)
     {
         if(rendering)return false;
@@ -153,17 +168,20 @@ public sealed class Mod:MelonMod
         {MelonLogger.Warning("🐱 Unified friend sort failed: "+ex.GetBaseException().Message);return true;}
         finally{rendering=false;}
     }
+    // UwU, timestamp an encounter; this means recently met, not proof of a completed match.
     private static void MetPlayer(string __0)
     {
         if(string.IsNullOrWhiteSpace(__0))return;
         history.RecordPlayed(__0,DateTime.UtcNow.Ticks);historyDirty=true;
         if(mode==SortMode.RecentlyPlayed)dirty=true;
     }
+    // Mew, fall back to A-Z if the optional statistics provider disappears, including a saved match-only sort.
     private static void EnsureAvailableSort()
     {
         if(IsMatch(mode) && !MatchInfoPresent)
         {mode=SortMode.Alphabetical;inverse=false;savedMode.Value=(int)mode;savedInverse.Value=false;dirty=true;historyDirty=true;resetPage=true;}
     }
+    // UwU, a second press reverses the active sort; WLR has four states. Save state and reset paging once.
     private static void Choose(SortMode chosen)
     {
         if(IsMatch(chosen) && !MatchInfoPresent)return;
@@ -173,11 +191,13 @@ public sealed class Mod:MelonMod
         else {mode=chosen;inverse=false;}
         savedMode.Value=(int)mode;savedInverse.Value=inverse;dirty=true;historyDirty=true;resetPage=true;
     }
+    // Mew, persist history and selection together; throttling in OnUpdate avoids a disk write on every frame.
     private static void Save()
     {
         try{savedHistory.Value=JsonSerializer.Serialize(history);preferences.SaveToFile(false);historyDirty=false;}
         catch(Exception ex){MelonLogger.Warning("🐱 Could not save sorting preferences: "+ex.Message);}
     }
+    // UwU, run lightweight work twice a second. File notifications only queue work; native game objects stay on this main thread.
     public override void OnUpdate()
     {
         if(stopped || Time.unscaledTime<nextTick)return;nextTick=Time.unscaledTime+.5f;
@@ -258,6 +278,7 @@ public sealed class Mod:MelonMod
         }
         catch(Exception ex){MelonLogger.Warning("🐱 FriendBPSort: "+ex.GetBaseException().Message);nextTick=Time.unscaledTime+5;}
     }
+    // Mew, recycled rows get new player IDs; hide their old value until native profile initialization finishes.
     private static void BindRow(PlayerTag tag,GetFriendsResult friend)
     {
         int id=tag.GetInstanceID();
@@ -265,16 +286,22 @@ public sealed class Mod:MelonMod
         row.Master=friend.PlayFabMasterId;row.Title=friend.PlayFabTitleId;row.Key=Key(friend);
         // Hide recycled row values until the native profile initialization finishes.
         if(row.Box)row.Box.SetActive(false);
+        RestoreRow(row);
     }
+    // UwU, keep labels attached to the current player, restore native BP when hidden, and constrain text to the row.
     private static void UpdateRowValues()
     {
         foreach(var pair in rowValues.ToArray())
         {
             var row=pair.Value;var tag=row.Tag;
             if(!tag){if(row.Box)Object.Destroy(row.Box);rowValues.Remove(pair.Key);continue;}
-            bool visible=tag.gameObject.activeInHierarchy && !tag.isInitializing &&
-                (mode==SortMode.BattlePoints || IsMatch(mode) && MatchInfoPresent);
-            if(!visible){if(row.Box)row.Box.SetActive(false);continue;}
+            bool visible=tag.gameObject.activeInHierarchy && !tag.isInitializing && IsMatch(mode) && MatchInfoPresent;
+            if(!visible)
+            {
+                if(row.Box)row.Box.SetActive(false);
+                RestoreRow(row);
+                continue;
+            }
             if(!tag.battlePoints)continue;
             if(!row.Box)CreateRowBox(row);
             long value=mode==SortMode.BattlePoints?(points.TryGetValue(row.Key,out int bp)?bp:-1):matches.Value(mode,row.Master);
@@ -283,20 +310,99 @@ public sealed class Mod:MelonMod
                 ValueDisplay.Pair(record?.Wins??-1,record?.Losses??-1,(mode==SortMode.Losses)!=inverse):ValueDisplay.Format(mode,value);
             if(row.Text.text!=text)row.Text.text=text;
             row.Text.color=mode==SortMode.Wins || mode==SortMode.Losses?Color.white:tag.battlePoints.color;
-            // Follow the actual BP label's right edge; camera position is a viewing reference.
-            var source=tag.battlePoints;var scale=source.transform.lossyScale;
+            var source=tag.battlePoints;
+            CaptureRow(row);RestoreRow(row);
+            var scale=source.transform.lossyScale;
+            float sx=Mathf.Abs(scale.x);
+            if(sx<.0001f)continue;
             var right=source.transform.right;
-            float halfWidth=source.rectTransform.rect.width*Mathf.Abs(scale.x)*.5f;
             Vector3 center=source.transform.TransformPoint(source.rectTransform.rect.center);
-            row.Box.transform.position=center+right*(halfWidth+.085f)-source.transform.forward*.008f;
+            var nameRect=tag.username.rectTransform;
+            Vector3 rowRight=nameRect.TransformPoint(new Vector3(nameRect.rect.xMax,nameRect.rect.center.y,0));
+            // UwU, share the BP field and spare space while leaving a safe border inset.
+            float left=-source.rectTransform.rect.width*sx*.5f+.004f;
+            float end=Vector3.Dot(rowRight-center,right)-.016f;
+            float available=(end-left)/sx;
+            if(available<=.01f){row.Box.SetActive(false);continue;}
+            row.Text.enableAutoSizing=false;row.Text.fontSize=row.BPFont;
+            // Mew, reserve six widest digits even before BP loads, followed by a bracket-width gap.
+            float digit=0;
+            for(int d=0;d<10;d++)digit=Mathf.Max(digit,row.Text.GetPreferredValues(d.ToString()).x);
+            float bpWidth=Mathf.Max(digit*6,row.Text.GetPreferredValues(source.text).x);
+            float gap=Mathf.Max(row.Text.GetPreferredValues("]").x,.003f/sx);
+            float valueWidth=row.Text.GetPreferredValues(text).x;
+            float factor=Mathf.Min(1f,available/Mathf.Max(.0001f,bpWidth+gap+valueWidth))*.96f;
+            // UwU, short values stay near native size; long pairs shrink together with BP.
+            source.enableAutoSizing=false;source.fontSize=row.BPFont*factor;
+            source.alignment=TextAlignmentOptions.MidlineLeft;
+            source.rectTransform.sizeDelta=new Vector2(bpWidth*factor,row.BPSize.y);
+            Vector3 target=center+right*(left+bpWidth*factor*sx*.5f);
+            source.transform.position+=target-source.transform.TransformPoint(source.rectTransform.rect.center);
+            row.Text.fontSize=row.BPFont*factor;row.Text.alignment=TextAlignmentOptions.MidlineLeft;
+            float start=left+(bpWidth+gap)*factor*sx;
+            float width=end-start;
+            row.Box.transform.position=center+right*(start+width*.5f)-source.transform.forward*.001f;
             row.Box.transform.rotation=source.transform.rotation;
+            row.Text.rectTransform.sizeDelta=new Vector2(width/sx,row.BPSize.y);
+            row.Text.margin=Vector4.zero;
+            // Mew, stretch the original tan plate inside the border; keep its material and outline.
+            if(row.Plate)
+            {
+                float nativeWidth=row.PlateBounds.size.x*Mathf.Abs(row.Plate.lossyScale.x);
+                if(nativeWidth>.001f)
+                {
+                    var ps=row.Plate.localScale;
+                    row.Plate.localScale=new Vector3(ps.x*(end-left+.008f)/nativeWidth,ps.y,ps.z);
+                    float current=Vector3.Dot(row.Plate.TransformPoint(row.PlateBounds.center)-center,right);
+                    row.Plate.position+=right*((left+end)*.5f-current);
+                }
+            }
+            row.Applied=true;
             row.Box.SetActive(true);
         }
     }
+    // UwU, capture native values once so each layout starts fresh instead of shrinking repeatedly.
+    private static void CaptureRow(RowValue row)
+    {
+        if(row.Captured)return;
+        var bp=row.Tag.battlePoints;
+        row.BPPosition=bp.transform.localPosition;row.BPSize=bp.rectTransform.sizeDelta;
+        row.BPFont=bp.fontSize;row.BPAuto=bp.enableAutoSizing;row.BPAlignment=bp.alignment;
+        Vector3 center=bp.transform.TransformPoint(bp.rectTransform.rect.center);
+        float best=float.MaxValue;
+        foreach(var mesh in row.Tag.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if(!mesh.sharedMesh || mesh.GetComponent<TMP_Text>())continue;
+            var t=mesh.transform; if(bp.transform.IsChildOf(t))continue; // UwU, keep text parents untouched.
+            if(Vector3.Dot(t.right,bp.transform.right)<.99f)continue;
+            var bounds=mesh.sharedMesh.bounds;
+            float width=bounds.size.x*Mathf.Abs(t.lossyScale.x);
+            var local=t.InverseTransformPoint(center);
+            // Mew, reject full-row and rank meshes; only use a small plate containing the BP center.
+            if(width<.08f || width>.30f || local.x<bounds.min.x || local.x>bounds.max.x ||
+                local.y<bounds.min.y || local.y>bounds.max.y)continue;
+            float distance=(t.TransformPoint(bounds.center)-center).sqrMagnitude;
+            if(distance>=best)continue;
+            best=distance;row.Plate=t;row.PlateBounds=bounds;
+        }
+        if(row.Plate){row.PlatePosition=row.Plate.localPosition;row.PlateScale=row.Plate.localScale;}
+        row.Captured=true;
+    }
+    // UwU, switching sorts and unloading the mod put native BP and its plate back exactly.
+    private static void RestoreRow(RowValue row)
+    {
+        if(!row.Applied || !row.Tag || !row.Tag.battlePoints)return;
+        var bp=row.Tag.battlePoints;
+        if(row.Plate){row.Plate.localPosition=row.PlatePosition;row.Plate.localScale=row.PlateScale;}
+        bp.transform.localPosition=row.BPPosition;bp.rectTransform.sizeDelta=row.BPSize;
+        bp.fontSize=row.BPFont;bp.enableAutoSizing=row.BPAuto;bp.alignment=row.BPAlignment;
+        row.Applied=false;
+    }
+    // Mew, this is only a transform and native-font text now. The original board supplies the background, so no duplicate plate protrudes.
     private static void CreateRowBox(RowValue row)
     {
         var source=row.Tag.battlePoints;
-        var box=GameObject.CreatePrimitive(PrimitiveType.Cube);box.SetActive(false);
+        var box=new GameObject("FriendBPSort.SortedValue");box.SetActive(false);
         try
         {
             box.name="FriendBPSort.SortedValue";box.transform.SetParent(row.Tag.transform,false);
@@ -304,26 +410,11 @@ public sealed class Mod:MelonMod
             var scale=box.transform.lossyScale;
             if(Mathf.Min(Mathf.Abs(scale.x),Mathf.Min(Mathf.Abs(scale.y),Mathf.Abs(scale.z)))<.0001f)
                 throw new InvalidOperationException("🐱 Cannot place value box on a zero-scale row.");
-            box.transform.localScale=new Vector3(.15f/Mathf.Abs(scale.x),.075f/Mathf.Abs(scale.y),.008f/Mathf.Abs(scale.z));
-            var collider=box.GetComponent<Collider>();collider.enabled=false;Object.Destroy(collider);
-            // Copy the nearest small native mesh behind the BP label, excluding text and our own boxes.
-            var center=source.transform.TransformPoint(source.rectTransform.rect.center);
-            var plate=row.Tag.GetComponentsInChildren<MeshFilter>(true)
-                .Where(m=>m.sharedMesh && m.GetComponent<MeshRenderer>() && !m.GetComponent<TMP_Text>() &&
-                    !m.name.StartsWith("FriendBPSort",StringComparison.Ordinal) &&
-                    m.GetComponent<Renderer>().bounds.size.magnitude<.65f)
-                .OrderBy(m=>(m.GetComponent<Renderer>().bounds.center-center).sqrMagnitude).FirstOrDefault();
-            if(plate)
-            {
-                box.GetComponent<MeshFilter>().sharedMesh=plate.sharedMesh;
-                box.GetComponent<Renderer>().sharedMaterials=plate.GetComponent<Renderer>().sharedMaterials;
-                var bounds=plate.sharedMesh.bounds;var parent=row.Tag.transform.lossyScale;
-                box.transform.localScale=new Vector3(.15f/Mathf.Max(.0001f,bounds.size.x*Mathf.Abs(parent.x)),
-                    .075f/Mathf.Max(.0001f,bounds.size.y*Mathf.Abs(parent.y)),.008f/Mathf.Max(.0001f,bounds.size.z*Mathf.Abs(parent.z)));
-            }
-            else box.GetComponent<Renderer>().sharedMaterial=SolidBrown();
+            // Use the existing row background itself: identical color, material and depth,
+            // with no cloned mesh whose off-center bounds can protrude beyond the board.
             var label=Object.Instantiate(source.gameObject,box.transform).GetComponent<TMP_Text>();
-            label.name="SortedValueText";label.transform.position=box.transform.position-source.transform.forward*.006f;
+            label.name="SortedValueText";label.transform.localPosition=Vector3.zero;
+            label.enabled=true;
             label.transform.localRotation=Quaternion.identity;
             var parentScale=box.transform.lossyScale;var textScale=source.transform.lossyScale;
             label.transform.localScale=new Vector3(textScale.x/parentScale.x,textScale.y/parentScale.y,textScale.z/parentScale.z);
@@ -331,30 +422,21 @@ public sealed class Mod:MelonMod
             label.rectTransform.sizeDelta=new Vector2(.14f/Mathf.Abs(textScale.x),.065f/Mathf.Abs(textScale.y));
             label.alignment=TextAlignmentOptions.Center;label.raycastTarget=false;label.richText=true;
             label.enableWordWrapping=false;label.enableAutoSizing=true;
+            label.overflowMode=TextOverflowModes.Masking;
             label.fontSizeMax=source.fontSize;label.fontSizeMin=source.fontSize*.3f;
             label.color=source.color;label.gameObject.SetActive(true);
             row.Box=box;row.Text=label;
         }
         catch{box.SetActive(false);Object.Destroy(box);throw;}
     }
-    private static Material SolidBrown()
-    {
-        if(backboardMaterial)return backboardMaterial;
-        var shader=Shader.Find("Universal Render Pipeline/Unlit");
-        if(!shader)shader=Shader.Find("Unlit/Color");
-        if(!shader)throw new InvalidOperationException("🐱 Solid-color backboard shader unavailable.");
-        backboardMaterial=new Material(shader);backboardMaterial.name="FriendBPSort.SolidBrown";
-        var brown=new Color(.32f,.16f,.07f,1f);
-        if(backboardMaterial.HasProperty("_BaseColor"))backboardMaterial.SetColor("_BaseColor",brown);
-        if(backboardMaterial.HasProperty("_Color"))backboardMaterial.SetColor("_Color",brown);
-        return backboardMaterial;
-    }
+    // Mew, clear callbacks cloned from the stone switch so these buttons cannot accidentally change your stones.
     private static void ClearEvents(InteractionButton button)
     {
         button.onPressed=new UnityEvent();button.onPressedByPlayer=new UnityEvent<Player>();
         button.onToggledByPlayerController=new UnityEvent<bool,PlayerController>();
         button.onToggleStateChanged=new UnityEventBool();button.isToggleButton=false;button.useLongPress=false;button.disableButtonAfterInit=false;button.pressInterval=.5f;
     }
+    // UwU, borrow native stone-button contact/haptic behavior, fit its mesh, then place each control in the lever column.
     private static SideButton MakeButton(PlayerTag tag,FriendList list,SortMode choice)
     {
         if(!tag.moreInfoButton || !tag.username)return null;
@@ -393,21 +475,18 @@ public sealed class Mod:MelonMod
             float extent=Mathf.Max(bounds.size.x,Mathf.Max(bounds.size.y,bounds.size.z));
             if(extent>.001f)go.transform.localScale*=.09f/extent;
         }
-        var sourcePosition=tag.transform.InverseTransformPoint(tag.moreInfoButton.transform.position);
-        // Mirror the row's existing action button across the text center to its left.
-        float textX=tag.transform.InverseTransformPoint(tag.username.transform.position).x;
-        sourcePosition.x=textX-Mathf.Max(Mathf.Abs(sourcePosition.x-textX),.06f);go.transform.position=tag.transform.TransformPoint(sourcePosition)-tag.username.transform.up*(.12f*(int)choice);
-        // Text-right matches the reader's right when facing the board. Place the
-        // column to the reader's LEFT of every scroll control with 16 cm clearance.
+        // Requested world-space anchor beside the lever, stacked vertically downward.
+        Vector3 buttonCenter=new Vector3(8.48f,1.76f-.12f*(int)choice,13.65f);
+        go.transform.position=buttonCenter;
+        // UwU, the borrowed stone button has an offset pivot. Center its visible
+        // geometry on the requested column so every button lines up evenly.
+        if(meshes.Length>0)
+        {
+            var centeredBounds=meshes[0].bounds;
+            foreach(var mesh in meshes)centeredBounds.Encapsulate(mesh.bounds);
+            go.transform.position+=buttonCenter-centeredBounds.center;
+        }
         var readerRight=tag.username.transform.right;
-        float leftEdge=Vector3.Dot(go.transform.position,readerRight)-.18f;
-        foreach(var scroll in new[]{list.pageUpButton,list.pageDownButton,list.scrollUpButton,list.scrollDownButton})
-            if(scroll)leftEdge=Mathf.Min(leftEdge,Vector3.Dot(scroll.transform.position,readerRight)-.16f);
-        go.transform.position+=readerRight*(leftEdge-Vector3.Dot(go.transform.position,readerRight));
-        // Move the entire control another two nominal 9 cm button widths left.
-        go.transform.position-=readerRight*.18f;
-        // Text's front faces -forward. Stand clear of the board instead of embedding in it.
-        go.transform.position-=tag.username.transform.forward*.12f;
         var native=go.GetComponent<InteractionButton>();ClearEvents(native);
         // Preserve the native hand filters, press rails, haptics and sound.
         // Reset contact state copied from a potentially pressed source button.
@@ -433,21 +512,6 @@ public sealed class Mod:MelonMod
         // Seven representative letter advances measured using the label's own font.
         float sevenLetters=label.GetPreferredValues("ABCDEFG").x*Mathf.Abs(label.transform.lossyScale.x);
         label.transform.position-=readerRight*sevenLetters;
-        // A small stone backboard behind each button. It is decorative so it
-        // cannot obstruct the native hand-contact trigger or scroll controls.
-        var backboard=GameObject.CreatePrimitive(PrimitiveType.Cube);
-        backboard.SetActive(false);backboard.name="SortButtonBackboard";
-        backboard.transform.SetParent(go.transform,false);
-        backboard.transform.rotation=tag.username.transform.rotation;
-        // One inch (0.0254 m) toward the reader from the previous backing plane.
-        backboard.transform.position=go.transform.position+tag.username.transform.forward*(.065f-.0254f);
-        backboard.transform.localScale=Vector3.one;
-        var backingScale=backboard.transform.lossyScale;
-        backboard.transform.localScale=new Vector3(.13f/Mathf.Abs(backingScale.x),.11f/Mathf.Abs(backingScale.y),.015f/Mathf.Abs(backingScale.z));
-        var backingCollider=backboard.GetComponent<Collider>();
-        if(backingCollider){backingCollider.enabled=false;Object.Destroy(backingCollider);}
-        backboard.GetComponent<Renderer>().sharedMaterial=SolidBrown();
-        backboard.SetActive(true);
         native.onPressed.AddListener((UnityAction)(Action)(()=>Choose(choice)));native.enabled=true;go.SetActive(true);
         return new SideButton {Object=go,Label=label,Mode=choice};
         }
@@ -457,18 +521,25 @@ public sealed class Mod:MelonMod
             go.SetActive(false);Object.Destroy(go);throw;
         }
     }
+    // Mew, restore original labels, dispose the watcher, remove patches and destroy only objects this mod created.
     public override void OnDeinitializeMelon()
     {
         stopped=true;if(historyDirty)Save();HarmonyInstance.UnpatchSelf();
         matchWatcher?.Dispose();matchWatcher=null;
-        foreach(var row in rowValues.Values)if(row.Box)Object.Destroy(row.Box);
+        foreach(var row in rowValues.Values)
+        {RestoreRow(row);if(row.Box)Object.Destroy(row.Box);}
         rowValues.Clear();
         foreach(var board in controls.Values)foreach(var button in board)if(button.Object)Object.Destroy(button.Object);
         controls.Clear();if(staging)Object.Destroy(staging);
-        if(backboardMaterial)Object.Destroy(backboardMaterial);
+
         foreach(var list in lists.Values.ToArray())if(list && list.gameObject.activeInHierarchy)list.Refresh();
     }
 }
+
+
+
+
+
 
 
 

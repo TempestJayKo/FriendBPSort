@@ -1,3 +1,4 @@
+// Mew, MatchInfo owns these records. We read complete snapshots by master ID, never edit its file or count matches twice.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -14,6 +15,7 @@ public sealed class MatchStats
     public Dictionary<string,MatchRecord> Records {get;private set;}=new(StringComparer.OrdinalIgnoreCase);
     private DateTime stamp;
     private long length=-1;
+    // Mew, reject truncated, duplicate, negative or overflowing records before replacing the last good snapshot.
     public static Dictionary<string,MatchRecord> Parse(string[] lines)
     {
         var result=new Dictionary<string,MatchRecord>(StringComparer.OrdinalIgnoreCase);
@@ -33,6 +35,7 @@ public sealed class MatchStats
         }
         return result;
     }
+    // UwU, metadata skips unchanged files; parse first, then swap the dictionary atomically on the game thread.
     public bool Reload(string path)
     {
         if(!File.Exists(path))
@@ -51,3 +54,4 @@ public sealed class MatchStats
     public long Value(SortMode mode,string master)
     {var r=Find(master);return r==null?-1:mode==SortMode.Wins?r.Wins:mode==SortMode.Losses?r.Losses:r.Total;}
 }
+

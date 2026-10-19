@@ -1,3 +1,4 @@
+// UwU, pure sorting/history code: no Unity objects, so offline tests can verify both directions and missing-data behavior.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,6 +8,7 @@ public enum SortMode { Alphabetical, BattlePoints, FriendAdded, RecentlyPlayed, 
 public static class Ranking
 {
     public static string PlainName(string name)=>Regex.Replace(name??"", "<[^>]*>", "");
+    // Mew, unknowns are checked before reversing; numeric ties use name then stable ID for predictable pages.
     public static int Compare(SortMode mode,int bpA,string nameA,string idA,long dateA,int bpB,string nameB,string idB,long dateB,bool inverse=false)
     {
         bool numeric=mode!=SortMode.Alphabetical;
@@ -28,6 +30,7 @@ public sealed class SortHistory
     public Dictionary<string,long> Added {get;set;}=new();
     public Dictionary<string,long> Played {get;set;}=new();
     public bool HasBaseline {get;set;}
+    // UwU, the first list is a baseline, not invented historical dates. Later unseen IDs get their first observed time.
     public bool ObserveFriends(IEnumerable<string> ids,long now)
     {
         var current=new HashSet<string>(ids.Where(id=>!string.IsNullOrEmpty(id)));
@@ -47,3 +50,4 @@ public sealed class SortHistory
         return Math.Max(a,b);
     }
 }
+

@@ -1,7 +1,11 @@
+// UwU, format numbers independently of the game. Rich-text colors stay with wins/losses when the pair reverses.
 using System.Globalization;
 namespace FriendBPSort;
 public static class ValueDisplay
 {
+    // UwU, both widths use the same tiny local units. Never clamp the denominator to a whole metre!
+    public static float FitFont(float nativeSize,float availableWidth,float referenceWidth)
+        =>nativeSize*System.Math.Min(1f,availableWidth/System.Math.Max(.0001f,referenceWidth))*.95f;
     public static string Pair(long wins,long losses,bool lossesFirst)
     {
         if(wins<0 || losses<0)return "—";
@@ -16,3 +20,4 @@ public static class ValueDisplay
         return value.ToString(CultureInfo.InvariantCulture);
     }
 }
+

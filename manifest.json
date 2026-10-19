@@ -1,4 +1,9 @@
-{"name":"FriendBPSort","version_number":"2.0.0","website_url":"https://github.com/TempestJayKo/FriendBPSort","description":"Physical friends-board sorting by name, BP, friend date, recent encounters, wins, losses and total matches with MatchInfo with reversible ordering.","dependencies":["LavaGang-MelonLoader-0.7.3"]}
-
-
-
+{
+  "name": "FriendBPSort",
+  "version_number": "2.0.1",
+  "website_url": "",
+  "description": "Physical friends-board sorting by name, BP, friend date, recent encounters, wins, losses and total matches, with reversible ordering.",
+  "dependencies": [
+    "LavaGang-MelonLoader-0.7.3"
+  ]
+}
